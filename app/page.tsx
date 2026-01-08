@@ -8,7 +8,7 @@ type Thought = {
   id: string;
   text: string;
   tag: Tag;
-  angle: number;  // radians
+  angle: number; // radians
   radius: number; // px
   createdAt: number;
 };
@@ -24,6 +24,10 @@ const TAG_RADIUS: Record<Tag, number> = {
   neutral: 170,
   distract: 260,
 };
+
+function TagIcon({ t }: { t: Tag }) {
+  return <span>{t === "support" ? "✅" : t === "neutral" ? "⚠️" : "❌"}</span>;
+}
 
 export default function Home() {
   const [anchor, setAnchor] = useState("Finish my hackday project");
@@ -121,11 +125,12 @@ export default function Home() {
               }}
             />
 
-            <div className="mt-3 flex gap-2 flex-wrap">
+            <div className="mt-3 flex gap-2 flex-wrap items-center">
               {(["support", "neutral", "distract"] as Tag[]).map((t) => (
                 <button
                   key={t}
                   onClick={() => setTag(t)}
+                  title={TAG_LABEL[t]}
                   className={
                     "rounded-xl px-3 py-2 text-sm border transition " +
                     (tag === t
@@ -133,7 +138,7 @@ export default function Home() {
                       : "bg-zinc-950/30 border-zinc-800 text-zinc-200 hover:border-zinc-600")
                   }
                 >
-                  {TAG_LABEL[t]}
+                  <TagIcon t={t} />
                 </button>
               ))}
 
@@ -158,10 +163,10 @@ export default function Home() {
             <ol className="text-sm text-zinc-300 list-decimal pl-5 space-y-1">
               <li>Set one anchor.</li>
               <li>Click “Demo data”.</li>
-              <li>Point at drift + whisper.</li>
+              <li>Point at drift + fade + whisper.</li>
             </ol>
             <p className="text-xs text-zinc-500 mt-2">
-              We don’t punish distraction — we make it visible.
+              We don’t punish distraction — we make attention visible.
             </p>
           </div>
         </section>
@@ -252,7 +257,10 @@ function Compass({
           ))}
 
           {/* Anchor */}
-          <div style={{ left: cx - 110, top: cy - 45, width: 220 }} className="absolute">
+          <div
+            style={{ left: cx - 110, top: cy - 45, width: 220 }}
+            className="absolute"
+          >
             <div className="rounded-2xl bg-zinc-100 text-zinc-950 px-4 py-3 shadow-lg shadow-zinc-950/40 text-center">
               <div className="text-xs font-semibold opacity-70">ANCHOR</div>
               <div className="text-sm font-semibold leading-snug">
@@ -266,6 +274,12 @@ function Compass({
             const x = cx + Math.cos(t.angle) * t.radius;
             const y = cy + Math.sin(t.angle) * t.radius;
 
+            // ❌ Fade as it drifts outward (visual meaning)
+            const opacity =
+              t.tag === "distract"
+                ? Math.max(0.35, 1 - (t.radius - 240) / 240)
+                : 1;
+
             const tone =
               t.tag === "support"
                 ? "border-emerald-400/50 bg-emerald-500/10 text-emerald-100"
@@ -276,8 +290,11 @@ function Compass({
             return (
               <div
                 key={t.id}
-                style={{ left: x - 95, top: y - 18, width: 190 }}
-                className={"absolute rounded-xl border px-3 py-2 text-xs backdrop-blur " + tone}
+                style={{ left: x - 95, top: y - 18, width: 190, opacity }}
+                className={
+                  "absolute rounded-xl border px-3 py-2 text-xs backdrop-blur " +
+                  tone
+                }
               >
                 {t.text}
               </div>
@@ -296,9 +313,10 @@ function Compass({
       </div>
 
       <div className="mt-3 text-xs text-zinc-500 flex gap-3 flex-wrap">
-        <span>✅ closer = aligned</span>
-        <span>⚠️ floating = neutral</span>
-        <span>❌ drifting = attention leak</span>
+        <span>● anchor</span>
+        <span>✅ close</span>
+        <span>⚠️ float</span>
+        <span>❌ drift + fade</span>
       </div>
     </div>
   );
