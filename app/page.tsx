@@ -8,8 +8,8 @@ type Thought = {
   id: string;
   text: string;
   tag: Tag;
-  angle: number; // radians
-  radius: number; // px
+  angle: number;
+  radius: number;
   createdAt: number;
 };
 
@@ -48,37 +48,40 @@ function TagIcon({ t }: { t: Tag }) {
   return <span>{t === "support" ? "✅" : t === "neutral" ? "⚠️" : "❌"}</span>;
 }
 
-// ✅ Lazy init from localStorage (no setState in useEffect)
-function getInitial() {
-  if (typeof window === "undefined") {
-    return {
-      anchor: "Finish my hackday project",
-      thoughts: [] as Thought[],
-    };
-  }
-  const s = loadState();
-  return {
-    anchor: s?.anchor || "Finish my hackday project",
-    thoughts: Array.isArray(s?.thoughts) ? s!.thoughts : ([] as Thought[]),
-  };
-}
-
 export default function Home() {
-  const initial = getInitial();
-
-  const [anchor, setAnchor] = useState<string>(initial.anchor);
+  // ✅ Always start with server-safe defaults (prevents hydration mismatch)
+  const [anchor, setAnchor] = useState("Finish my hackday project");
   const [draft, setDraft] = useState("");
   const [tag, setTag] = useState<Tag>("support");
-  const [thoughts, setThoughts] = useState<Thought[]>(initial.thoughts);
+  const [thoughts, setThoughts] = useState<Thought[]>([]);
   const [whisper, setWhisper] = useState<string | null>(null);
 
-  // Autosave (external system sync) — this is what effects are for
+  // ✅ Hydration gate: only render the app after mount
+  const [mounted, setMounted] = useState(false);
+
+useEffect(() => {
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  setMounted(true);
+
+  const s = loadState();
+  if (s) {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setAnchor(s.anchor || "Finish my hackday project");
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setThoughts(Array.isArray(s.thoughts) ? s.thoughts : []);
+  }
+}, []);
+
+
+  // Autosave (external sync)
   useEffect(() => {
+    if (!mounted) return;
     saveState(anchor, thoughts);
-  }, [anchor, thoughts]);
+  }, [anchor, thoughts, mounted]);
 
   // Drift distract thoughts outward slowly
   useEffect(() => {
+    if (!mounted) return;
     const t = setInterval(() => {
       setThoughts((prev) =>
         prev.map((th) => {
@@ -88,7 +91,7 @@ export default function Home() {
       );
     }, 50);
     return () => clearInterval(t);
-  }, []);
+  }, [mounted]);
 
   const addThought = (textRaw?: string, tagOverride?: Tag) => {
     const text = (textRaw ?? draft).trim();
@@ -139,6 +142,15 @@ export default function Home() {
       localStorage.removeItem(LS_KEY);
     } catch {}
   };
+
+  // While not mounted, render a stable minimal shell (prevents mismatch)
+  if (!mounted) {
+    return (
+      <main className="min-h-screen bg-zinc-950 text-zinc-100 flex items-center justify-center">
+        <div className="text-zinc-400 text-sm">Loading…</div>
+      </main>
+    );
+  }
 
   return (
     <main className="min-h-screen bg-zinc-950 text-zinc-100">
@@ -224,9 +236,6 @@ export default function Home() {
               <li>Refresh: it still persists.</li>
               <li>Reset: it clears.</li>
             </ol>
-            <p className="text-xs text-zinc-500 mt-2">
-              We don’t punish distraction — we make attention visible.
-            </p>
           </div>
         </section>
 
