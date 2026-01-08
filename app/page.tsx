@@ -25,16 +25,57 @@ const TAG_RADIUS: Record<Tag, number> = {
   distract: 260,
 };
 
+const LS_KEY = "focus_compass_v1";
+
+function saveState(anchor: string, thoughts: Thought[]) {
+  try {
+    localStorage.setItem(LS_KEY, JSON.stringify({ anchor, thoughts }));
+  } catch {}
+}
+
+function loadState(): { anchor: string; thoughts: Thought[] } | null {
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    return raw
+      ? (JSON.parse(raw) as { anchor: string; thoughts: Thought[] })
+      : null;
+  } catch {
+    return null;
+  }
+}
+
 function TagIcon({ t }: { t: Tag }) {
   return <span>{t === "support" ? "✅" : t === "neutral" ? "⚠️" : "❌"}</span>;
 }
 
+// ✅ Lazy init from localStorage (no setState in useEffect)
+function getInitial() {
+  if (typeof window === "undefined") {
+    return {
+      anchor: "Finish my hackday project",
+      thoughts: [] as Thought[],
+    };
+  }
+  const s = loadState();
+  return {
+    anchor: s?.anchor || "Finish my hackday project",
+    thoughts: Array.isArray(s?.thoughts) ? s!.thoughts : ([] as Thought[]),
+  };
+}
+
 export default function Home() {
-  const [anchor, setAnchor] = useState("Finish my hackday project");
+  const initial = getInitial();
+
+  const [anchor, setAnchor] = useState<string>(initial.anchor);
   const [draft, setDraft] = useState("");
   const [tag, setTag] = useState<Tag>("support");
-  const [thoughts, setThoughts] = useState<Thought[]>([]);
+  const [thoughts, setThoughts] = useState<Thought[]>(initial.thoughts);
   const [whisper, setWhisper] = useState<string | null>(null);
+
+  // Autosave (external system sync) — this is what effects are for
+  useEffect(() => {
+    saveState(anchor, thoughts);
+  }, [anchor, thoughts]);
 
   // Drift distract thoughts outward slowly
   useEffect(() => {
@@ -88,6 +129,17 @@ export default function Home() {
     addThought("Check Instagram", "distract");
   };
 
+  const resetAll = () => {
+    setAnchor("Finish my hackday project");
+    setDraft("");
+    setTag("support");
+    setThoughts([]);
+    setWhisper(null);
+    try {
+      localStorage.removeItem(LS_KEY);
+    } catch {}
+  };
+
   return (
     <main className="min-h-screen bg-zinc-950 text-zinc-100">
       <div className="mx-auto max-w-6xl px-4 py-6 grid gap-6">
@@ -98,7 +150,6 @@ export default function Home() {
           </p>
         </header>
 
-        {/* Controls */}
         <section className="grid md:grid-cols-3 gap-4">
           <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-4">
             <div className="text-sm text-zinc-400 mb-2">Anchor</div>
@@ -155,15 +206,23 @@ export default function Home() {
               >
                 Demo data
               </button>
+
+              <button
+                onClick={resetAll}
+                className="rounded-xl px-3 py-2 text-sm border border-zinc-700 bg-zinc-950/30 text-zinc-200 hover:border-zinc-500"
+              >
+                Reset
+              </button>
             </div>
           </div>
 
           <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-4">
             <div className="text-sm text-zinc-400 mb-2">Judge demo</div>
             <ol className="text-sm text-zinc-300 list-decimal pl-5 space-y-1">
-              <li>Set one anchor.</li>
               <li>Click “Demo data”.</li>
               <li>Point at drift + fade + whisper.</li>
+              <li>Refresh: it still persists.</li>
+              <li>Reset: it clears.</li>
             </ol>
             <p className="text-xs text-zinc-500 mt-2">
               We don’t punish distraction — we make attention visible.
@@ -171,7 +230,6 @@ export default function Home() {
           </div>
         </section>
 
-        {/* Canvas + List */}
         <section className="grid lg:grid-cols-3 gap-4">
           <div className="lg:col-span-2 rounded-2xl border border-zinc-800 bg-zinc-900/30 p-4">
             <div className="text-sm text-zinc-400 mb-3">Compass</div>
@@ -242,7 +300,6 @@ function Compass({
           style={{ width: W, height: H }}
           className="relative rounded-2xl bg-gradient-to-b from-zinc-950/40 to-zinc-950/10 border border-zinc-800 overflow-hidden"
         >
-          {/* Rings */}
           {rings.map((ring) => (
             <div
               key={ring.r}
@@ -256,7 +313,6 @@ function Compass({
             />
           ))}
 
-          {/* Anchor */}
           <div
             style={{ left: cx - 110, top: cy - 45, width: 220 }}
             className="absolute"
@@ -269,12 +325,10 @@ function Compass({
             </div>
           </div>
 
-          {/* Thoughts */}
           {thoughts.map((t) => {
             const x = cx + Math.cos(t.angle) * t.radius;
             const y = cy + Math.sin(t.angle) * t.radius;
 
-            // ❌ Fade as it drifts outward (visual meaning)
             const opacity =
               t.tag === "distract"
                 ? Math.max(0.35, 1 - (t.radius - 240) / 240)
@@ -301,7 +355,6 @@ function Compass({
             );
           })}
 
-          {/* Whisper */}
           {whisper && (
             <div className="absolute left-1/2 top-6 -translate-x-1/2">
               <div className="rounded-full border border-zinc-700 bg-zinc-950/70 px-4 py-2 text-sm text-zinc-200">
